@@ -1,4 +1,4 @@
-INPUT ?= ./file_1MB.txt
+INPUT ?= ./file_test.txt
 OUTPUT ?= ./output.txt
 
 
@@ -7,6 +7,6 @@ test:
 diff:
 	diff $(INPUT) $(OUTPUT)
 kill:
-	pkill python2
+	pkill Python
 clean:
 	rm *.log $(OUTPUT) *.pyc

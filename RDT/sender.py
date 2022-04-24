@@ -39,49 +39,70 @@ class BogoSender(Sender):
             except socket.timeout:
                 pass
 
+class SexySender(Sender):
 
-if __name__ == "__main__":
-    # test out BogoSender
-    DATA = bytearray(sys.stdin.read())
-    sndr = BogoSender()
-    sndr.send(DATA)
-
-class sexySender(BogoSender):
     def __init__(self):
-        super(sexySender, self).__init__()
+        super(SexySender, self).__init__()
 
-    timers = []
+    timers = [0]*5
+
+    N = 5           # Window size
+    def makePacket(self, data, nextseqnum):
+        #Ensure sequence number is 3 bytes (zero pad)
+        tmp = str(nextseqnum%self.N)
+        while len(tmp) < 3:
+            tmp = "0" + tmp
+        return data + tmp
 
     # FIXME: potential race condition
-    def resend(data):
-        print("cock")
+    def resend(self, data, base, nextseqnum):
+        for i in range(base, nextseqnum+1):
+            item = data[base]
+            tmp = self.makePacket(item, i)
+            print("RESENDING DATA: {}".format(i))
+            self.simulator.u_send(tmp)  # resend data
+            self.logger.info("Resending packet: {}, seqnum: {}.".format(i, i%self.N))
 
     def send(self, data):
-        N = 5           # Window size
         packetSize = 100        # Size of packets
         chunks = [data[i:i+packetSize] for i in range(0, len(data), packetSize)]    # Dividing data into packets of 100 bytes
         base = 0
         nextseqnum = 0
         timeout = 1
-        while True: 
-            if nextseqnum < base + N:
-                # TODO: add a checksum for bit errors 
-                packet = chunks[nextseqnum]
+        # waitTime = threading.Timer(2*timeout, self.resend, [chunks, base, nextseqnum]).start()
+        while True:
+            print("base: {}, nextseq #: {}".format(base, nextseqnum))
+            if base == len(chunks):
+                break
+            if nextseqnum < base + self.N:
+                # TODO: add a checksum for bit errors
+                packet = self.makePacket(chunks[nextseqnum], nextseqnum)
                 self.simulator.u_send(packet)  # send data in window of size N
-                timer = threading.Timer(timeout, self.resend, [chunks[base:nextseqnum]])        # sending all N in window for now...
+                self.logger.info("Sending packet: {} with seqnum: {}".format(nextseqnum, nextseqnum%self.N))
+                timer = threading.Timer(timeout, self.resend, [chunks, base, nextseqnum])        # sending all N in window for now...
                 timer.start()
-                self.timers.append(timer)
+                self.timers[nextseqnum%self.N] = timer
                 nextseqnum+=1
+                # print(base)
 
-            ack = self.simulator.u_receive()  # receive ACK
-            if ack == bytes(base): # using the sleep stuff in layth.py guarantees the order, whcih we think fixes this
-                base+=1
-                self.timers.pop(0)
-                
+            try:
+                ack = self.simulator.u_receive()  # receive ACK
+                # waitTime.cancel()
+                print("ACK RECEIVED: {}, expecting {} ".format(ack.decode('ascii'), base%self.N))
+                if int(ack.decode('ascii')) == base%self.N: # FIXME: possible need to worry about > condition if not handled correctly in receiver
+                    self.timers[base%self.N].cancel()
+                    self.logger.info("Got ACK {} from socket".format(ack.decode('ascii')))  # note that ASCII will only decode bytes in the range 0-127
+                    base+=1
+                # elif int(ack.decode('ascii')) < base%self.N:
+                #     self.resend(chunks, base, nextseqnum)
+                # else:
+                #     waitTime = threading.Timer(2*timeout, self.resend, [chunks, base, nextseqnum]).start()
+            except: 
+                print("No acks received")
+                continue
 
-
-
-
-
-
-
+if __name__ == "__main__":
+    # test out BogoSender
+    DATA = bytearray(sys.stdin.read())
+    sndr = SexySender()
+    sndr.send(DATA)

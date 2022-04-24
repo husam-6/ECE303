@@ -40,17 +40,37 @@ class BogoReceiver(Receiver):
             except socket.timeout:
                 sys.exit()
 
+
+class SexyReceiver(Receiver):
+    def __init__(self):
+        super(SexyReceiver, self).__init__()
+    
+    N = 5       # Window size
+
+    def receive(self):
+        packetSize = 100
+        nextseqnum = 0
+        self.logger.info("Receiving on port: {} and replying with ACK on port: {}".format(self.inbound_port, self.outbound_port))
+        while True: 
+            try:    
+                data = self.simulator.u_receive()  # receive possibly corrupted data
+                self.logger.info("Got sequence number: {}. Full data received: {}".format(data[-3:], data))  # note that ASCII will only decode bytes in the range 0-127
+            except socket.timeout:
+                sys.exit()
+
+            packetseq = data[-3:]
+            if nextseqnum == int(packetseq):
+                sys.stdout.write(data[:-3])
+                self.simulator.u_send(bytes(packetseq))  # send ACK
+                nextseqnum += 1
+                nextseqnum = nextseqnum%self.N
+            else:
+                self.logger.info("Out of order. Resending ack {}".format(nextseqnum-1))
+                self.simulator.u_send(bytes(nextseqnum-1))  # send ACK
+
+
+
 if __name__ == "__main__":
     # test out BogoReceiver
-    rcvr = BogoReceiver()
+    rcvr = SexyReceiver()
     rcvr.receive()
-
-# class sexyReceiver(BogoReceiver):
-#     def __init__(self):
-#         super(sexyReceiver, self).__init__()
-
-#     def receive(self):
-#         oncethru = 0
-
-#         data = self.simulator.u_receive()  # receive possibly corrupted data
-
