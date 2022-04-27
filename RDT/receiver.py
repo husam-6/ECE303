@@ -6,7 +6,7 @@ import channelsimulator
 import utils
 import sys
 import socket
-from checksum import sexyChecksum
+from checksum import sexyChecksum, window
 
 class Receiver(object):
 
@@ -46,11 +46,11 @@ class SexyReceiver(Receiver):
     def __init__(self):
         super(SexyReceiver, self).__init__()
     
-    N = 5       # Window size
+    N = window       # Window size
 
     def receive(self):
         packetSeen = 0
-        packetSize = 100
+        # packetSize = 100
         nextseqnum = 0
         self.logger.info("Receiving on port: {} and replying with ACK on port: {}".format(self.inbound_port, self.outbound_port))
         while True: 
@@ -68,13 +68,22 @@ class SexyReceiver(Receiver):
                 
                 check = data[-9:]
                 comp = sexyChecksum(data[:-9])
-                # self.logger.info("Data received: {}".format(data))
+                # self.logger.info("Data received: {}".format(data.decode()))
                 # self.logger.info("Checksums: receiver - {}, sender {}".format(comp, check))
                 if comp != check: # checks if data is corrupted
-                    self.logger.info("Data was corrupted. Resending ack {}".format(nextseqnum-1))
-                    self.simulator.u_send(bytearray(str(nextseqnum-1), encoding="utf8"))  # send ACK
-                    continue
+                    if nextseqnum == 0: 
+                        tmp = (2*self.N)-1
+                    else: 
+                        tmp = nextseqnum-1
+                    self.logger.info("Data was corrupted. Resending ack {}".format(tmp))
                     
+                    tmp = str(tmp)
+                    tmp = "0"*(3-len(tmp)) + tmp
+                    check = sexyChecksum(tmp)
+                    self.simulator.u_send(bytearray(tmp+check, encoding="utf8"))  # send ACK
+                    continue
+                
+                # self.logger.info("Waiting for packet {}, received data: {}".format(nextseqnum, data[:-12]))
                 #If we get here then the data is not corrupted
                 if nextseqnum == decSeq:
                     self.logger.info("Sending ack {}".format(nextseqnum))
@@ -83,14 +92,24 @@ class SexyReceiver(Receiver):
                     #Make a checksum for the ack packet
                     check = sexyChecksum(str(packetseq))
                     packet = str(packetseq) + check
+                    # self.logger.info("Sending ACK + Checksum: {}".format(packet))
                     self.simulator.u_send(bytearray(packet, encoding='utf8'))  # send ACK
                     
                     nextseqnum += 1
                     packetSeen+=1
-                    nextseqnum = nextseqnum%self.N
+                    nextseqnum = nextseqnum%(2*self.N)
                 else:
-                    self.logger.info("Out of order. Resending ack {}".format(nextseqnum-1))
-                    self.simulator.u_send(bytearray(str(nextseqnum-1), encoding="utf8"))  # send ACK
+                    if nextseqnum == 0: 
+                        tmp = (2*self.N)-1
+                    else: 
+                        tmp = nextseqnum-1
+                    
+                    tmp = str(tmp)
+                    tmp = "0"*(3-len(tmp)) + tmp
+                    check = sexyChecksum(tmp)
+                    self.logger.info("Out of order. Resending ack {}".format(tmp))
+
+                    self.simulator.u_send(bytearray(tmp+check, encoding="utf8"))  # send ACK
                     continue
             except socket.timeout:
                 sys.exit()
