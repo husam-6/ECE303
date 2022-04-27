@@ -48,8 +48,8 @@ class SexySender(Sender):
 
     N = window                   # Window size
     timers = [0]*2*N
-    packetSize = 100        # Size of packets
-    timeout = 3
+    packetSize = 1000        # Size of packets
+    timeout = 1
 
     def makePacket(self, data, nextseqnum):
         #Ensure sequence number is 3 bytes (zero pad)
@@ -60,14 +60,15 @@ class SexySender(Sender):
         
         return data + tmp + check
 
+    # FIXME: potential race condition
     def resend(self, data, nextseqnum, arg):
         # for i in range(base, nextseqnum+1):
         #     item = data[base]
-        #Set up a new time out for the resend packet
-        # self.timers[nextseqnum%(2*self.N)].cancel()
-        # timer = threading.Timer(self.timeout, self.resend, [data, nextseqnum, "Timeout"])       
-        # timer.start()
-        # self.timers[nextseqnum%(2*self.N)] = timer
+        
+        self.timers[nextseqnum%(2*self.N)].cancel()
+        timer = threading.Timer(self.timeout, self.resend, [data, nextseqnum, "Timeout"])       
+        timer.start()
+        self.timers[nextseqnum%(2*self.N)] = timer
 
         tmp = self.makePacket(data, nextseqnum)
         print("RESENDING DATA: {}".format(nextseqnum))
@@ -100,10 +101,10 @@ class SexySender(Sender):
                 print("ACK RECEIVED: {}, expecting {} ".format(int(ack[:3].decode()), base%(2*self.N)))
                 self.logger.info("Got ACK {} from socket, expecting {}".format(int(ack[:3].decode()), base%(2*self.N)))  # note that ASCII will only decode bytes in the range 0-127
 
-                self.logger.info("Full ACK + checksum received: {}".format(ack.decode()))
+                # self.logger.info("Full ACK + checksum received: {}".format(ack.decode()))
                 check = ack[-9:]
                 comp = sexyChecksum(ack[:3].decode())
-                # self.logger.info("Checksum: {}, from receiver {}".format(comp, check.decode()))
+                self.logger.info("Checksum: {}, from receiver {}".format(comp, check.decode()))
                 if check.decode() != comp:
                     # self.logger.info("Ack was corrupted. Resending packet {}".format(base))
                     self.resend(chunks[base], base, "Corrupted ACK")
@@ -114,13 +115,12 @@ class SexySender(Sender):
                     self.timers[base%(2*self.N)].cancel()
                     base+=1
                     # waitTime = threading.Timer(timeout, self.resend, [chunks[nextseqnum], nextseqnum]).start()
-                
-                
-                # elif decAck > base%(2*self.N):
-                #     base += decAck-base%(2*self.N)
+                # elif decAck > base%self.N: 
+                #     base += decAck-base%self.N
                 # elif decAck < base%(2*self.N):
                 #     # print("Resending Packet " + str(base-decAck))
                 #     self.resend(chunks[base-decAck], base-decAck)
+
             except:
                 # if nextseqnum-base==5:
                 #     self.resend(chunks[base], base) 

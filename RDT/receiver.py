@@ -71,10 +71,11 @@ class SexyReceiver(Receiver):
                 # self.logger.info("Data received: {}".format(data.decode()))
                 # self.logger.info("Checksums: receiver - {}, sender {}".format(comp, check))
                 if comp != check: # checks if data is corrupted
-                    if nextseqnum == 0: 
-                        tmp = (2*self.N)-1
-                    else: 
-                        tmp = nextseqnum-1
+                    tmp = (nextseqnum-1)%(2*self.N)
+                    # if nextseqnum == 0: 
+                    #     tmp = (2*self.N)-1
+                    # else: 
+                    #     tmp = nextseqnum-1
                     self.logger.info("Data was corrupted. Resending ack {}".format(tmp))
                     
                     tmp = str(tmp)
@@ -99,10 +100,11 @@ class SexyReceiver(Receiver):
                     packetSeen+=1
                     nextseqnum = nextseqnum%(2*self.N)
                 else:
-                    if nextseqnum == 0: 
-                        tmp = (2*self.N)-1
-                    else: 
-                        tmp = nextseqnum-1
+                    tmp = (nextseqnum-1)%(2*self.N)
+                    # if nextseqnum == 0: 
+                    #     tmp = (2*self.N)-1
+                    # else: 
+                    #     tmp = nextseqnum-1
                     
                     tmp = str(tmp)
                     tmp = "0"*(3-len(tmp)) + tmp
