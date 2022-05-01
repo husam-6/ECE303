@@ -48,7 +48,7 @@ class SexyReceiver(Receiver):
         super(SexyReceiver, self).__init__()
     
     N = window       # Window size
-
+    packetSize = 2*window
 
     def receive(self):
         # packetSize = 100
