@@ -48,7 +48,7 @@ class SexyReceiver(Receiver):
         super(SexyReceiver, self).__init__()
     
     N = window       # Window size
-    packetSize = 2*window
+    # packetSize = 2*window
 
     def receive(self):
         # packetSize = 100
@@ -62,50 +62,44 @@ class SexyReceiver(Receiver):
 
                 #Theres some error when swaps occur
                 try: 
-                    self.logger.info("Received packet with data: {}".format(data.decode()))
+                    # self.logger.info("Received packet with data: {}".format(data.decode()))
+                    data.decode()
                 except: 
                     continue
-                packetseq = data[-14:-9]
-                self.logger.info("Sequence number: {}".format(packetseq.decode()))
-                decSeq = int(packetseq.decode())
                 
                 #check for corruption
                 check = data[-9:]
                 comp = sexyChecksum(data[:-9])
                 if comp != check: # checks if data is corrupted
-                    # tmp = (nextseqnum-1)%(2*self.N)
-                    # #might not have to resend ack
-                    # self.logger.info("Data was corrupted. Resending ack {}".format(tmp))
-                    # tmp = str(tmp)
-                    # tmp = "0"*(3-len(tmp)) + tmp
-                    # check = sexyChecksum(tmp)
-                    # self.simulator.u_send(bytes(tmp+check, encoding="utf8"))  # send ACK
                     continue
+                
+                packetseq = data[-15:-9]
+                # packetseq = data[-12:-9]
+                self.logger.info("Sequence number: {}".format(packetseq.decode()))
+                decSeq = int(packetseq.decode())
                 
                 if nextseqnum == decSeq:
                     #Make a checksum for the ack packet
                     self.logger.info("Sending ack {}".format(decSeq))
                     check = sexyChecksum(str(packetseq))
                     packet = str(packetseq) + check
-                    self.simulator.u_send(bytes(packet))  # send ACK
+                    self.simulator.u_send(bytearray(packet))  # send ACK
                     nextseqnum+=1
 
                     #write output 
-                    sys.stdout.write(data[:-14])
+                    sys.stdout.write(data[:-15])
 
 
                 else: 
                     self.logger.info("Out of order... Received # {} but expected {}".format(decSeq, nextseqnum))
-                    tmp = (nextseqnum-1)
+                    tmp = nextseqnum-1
                     tmp = str(tmp)
-                    tmp = "0"*(5-len(tmp)) + tmp
+                    tmp = "0"*(6-len(tmp)) + tmp
+                    # tmp = "0"*(3-len(tmp)) + tmp
                     check = sexyChecksum(tmp)
                     self.simulator.u_send(bytearray(tmp+check, encoding="utf8"))  # send ACK
                     continue
                 
-                
-                
-
             except socket.timeout:
                 sys.exit()
 

@@ -5,6 +5,7 @@
 import logging
 import socket
 import threading
+import time
 import channelsimulator
 import utils
 import sys
@@ -51,26 +52,23 @@ class SexySender(Sender):
     # timers = [0]*2*N
     timers = threading.Timer(1, True)
     timers.daemon = True 
-    packetSize = 2*window        # Size of packets
-    timeout = 0.05
+    packetSize = 1009        # Size of packets
+    timeout = 0.01
 
     base = 0
     nextseqnum = 0
 
+    #Puts together a packet with a seq num and checksum
     def makePacket(self, data, nextseqnum):
-        #Ensure sequence number is 3 bytes (zero pad)
-        
+        #Ensure sequence number is 6 bytes (zero pad)
         tmp = str(nextseqnum)
-        tmp = "0"*(5-len(tmp)) + tmp
+        tmp = "0"*(6-len(tmp)) + tmp
         check = sexyChecksum(data+tmp)
         
         return data + bytearray(tmp + check, encoding="utf8")
 
-    # FIXME: potential race condition
+    #Resends N packets on timeout 
     def resend(self, data, arg):
-        # for i in range(base, nextseqnum+1):
-        #     item = data[base]
-        # print("TIMEOUT ON BASE = {}".format(self.base))
         
         self.logger.info("Resending packet: {} to {}.\nReason: {}".format(self.base, self.nextseqnum, arg))
 
@@ -79,18 +77,22 @@ class SexySender(Sender):
             tmp = self.makePacket(data[i], i)
             self.simulator.u_send(tmp)  # resend data"
 
-        self.timers = threading.Timer(self.timeout, self.resend, [data, "Timeout"])
-        self.timers.daemon = True 
-        self.timers.start()
+        # self.timers = threading.Timer(self.timeout, self.resend, [data, "Timeout"])
+        # self.timers.daemon = True 
+        # self.timers.start()
         # print("RESENDING DATA: {} to {}".format(self.base, min(self.base+self.N, len(data))))
+        # if arg == "Timeout":
         sys.exit()
 
     def send(self, data):
-        chunks = [data[i:i+self.packetSize] for i in range(0, len(data), self.packetSize)]    # Dividing data into packets of 100 bytes
+        chunks = [data[i:i+self.packetSize] for i in range(0, len(data), self.packetSize)]    # Dividing data into packets of packetSize bytes
+        count = 0
+        prev = 0
         while True:
-            print("base: {}, nextseq #: {}".format(self.base, self.nextseqnum))
-            if self.base >= len(chunks) and self.nextseqnum == self.base:# or self.nextseqnum == len(chunks):
-                print("HUGE COCK")
+            # print("base: {}, nextseq #: {}".format(self.base, self.nextseqnum))
+            
+            # When we reach the end of the input break
+            if self.base >= len(chunks) and self.nextseqnum == self.base:
                 break
             
 
@@ -98,15 +100,15 @@ class SexySender(Sender):
             if self.nextseqnum < self.base + self.N and self.nextseqnum<len(chunks):
                 packet = self.makePacket(chunks[self.nextseqnum], self.nextseqnum)
                 self.simulator.u_send(packet)  # send data in window of size N
-                self.logger.info("Sending packet: {}".format(packet))
+                self.logger.info("Sending packet: {}".format(self.base))
                 if self.base == self.nextseqnum:
-                    self.timers.cancel()
                     self.timers = threading.Timer(self.timeout, self.resend, [chunks, "Timeout"])
                     self.timers.daemon = True 
                     self.timers.start()       
                 self.nextseqnum+=1
 
             try:
+                #Check ACKs received
                 ack = self.simulator.u_receive()  # receive ACK
                 check = ack[-9:]
                 comp = sexyChecksum(str(ack[:-9]))
@@ -118,20 +120,30 @@ class SexySender(Sender):
                 decAck = int(str(ack[:-9]))
                 if decAck >= self.base:
                     self.base = decAck + 1
-                if self.base == self.nextseqnum:
-                    self.timers.cancel()
+                    # prev = decAck
+                # elif self.base < decAck: 
+                #     self.resendPkt(chunks, decAck)
                 else: 
                     self.timers.cancel()
+                    self.timers.join()
                     self.timers=threading.Timer(self.timeout, self.resend, [chunks, "Timeout"])
                     self.timers.daemon = True 
-                    self.timers.start()     
+                    self.timers.start()
+                    # if prev == decAck:
+                    #     count+=1
+                    #     if count>=3:
+                    #         self.timers.cancel()
+                    #         self.resend(chunks, "Retransmit")
+                             
             except:
                 print("Error or no acks received")
                 continue
         
         self.timers.cancel()
+        self.timers.join()
         print(threading.active_count())
         sys.exit()
+
 
 if __name__ == "__main__":
     # test out BogoSender

@@ -1,12 +1,12 @@
-INPUT ?= ./file_test.txt
+INPUT ?= ./biggest.txt
 OUTPUT ?= ./output.txt
 
 
-test:
+test: 
 	python2 receiver.py > $(OUTPUT) & time python2 sender.py < $(INPUT) &
 diff:
 	diff $(INPUT) $(OUTPUT)
 kill:
-	pkill Python
+	pkill -i python
 clean:
 	rm *.log $(OUTPUT) *.pyc

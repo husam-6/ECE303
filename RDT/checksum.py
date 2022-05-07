@@ -1,4 +1,4 @@
-window = 100          # window size
+window = 10          # window size
 
 def sexyChecksum(data):
     p = 31
